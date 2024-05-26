@@ -4,11 +4,11 @@ JC = javac
 .java.class:
 	$(JC) $(JFLAGS) $*.java
 
-CLASSES = $(wildcard crafter/*.java)
+CLASSES = $(wildcard */*.java)
 
 default: classes
 
 classes: $(CLASSES:.java=.class)
 
 clean:
-	$(RM) crafter/*.class
+	$(RM) */*.class
