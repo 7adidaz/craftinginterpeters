@@ -3,12 +3,15 @@ package crafter;
 import crafter.Expr.Assign;
 import crafter.Expr.Binary;
 import crafter.Expr.Grouping;
+import crafter.Expr.Logical;
 import crafter.Expr.Unary;
 import crafter.Expr.Variable;
 import crafter.Stmt.Block;
 import crafter.Stmt.Expression;
+import crafter.Stmt.If;
 import crafter.Stmt.Print;
 import crafter.Stmt.Var;
+import crafter.Stmt.While;
 import java.util.List;
 
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
@@ -184,5 +187,33 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     } finally {
       this.environment = prev;
     }
+  }
+
+  @Override
+  public Void visitIfStmt(If stmt) {
+    if (isTruthy(evaluate(stmt.condition))) {
+      execute(stmt.thenBranch);
+    } else if (stmt.elseBranch != null) {
+      execute(stmt.elseBranch);
+    }
+    return null;
+  }
+
+  @Override
+  public Object visitLogicalExpr(Logical expr) {
+    Object left = evaluate(expr.left);
+
+    if (expr.operator.type == TokenType.OR) {
+      if (isTruthy(left)) return left;
+    } else {
+      if (!isTruthy(left)) return left;
+    }
+    return evaluate(expr.right);
+  }
+
+  @Override
+  public Void visitWhileStmt(While stmt) {
+    while (isTruthy(evaluate(stmt.condition))) execute(stmt.body);
+    return null;
   }
 }

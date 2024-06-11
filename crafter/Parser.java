@@ -4,6 +4,7 @@ import static crafter.TokenType.*;
 
 import crafter.Expr.Variable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 class Parser {
@@ -45,19 +46,97 @@ class Parser {
   }
 
   private Stmt statement() {
+    if (match(FOR)) return forStatement();
+    if (match(IF)) return ifStatment();
     if (match(PRINT)) return printStatment();
+    if (match(WHILE)) return whileStatment();
     if (match(LEFT_BRACE)) return new Stmt.Block(block());
     return expressionStatement();
   }
 
+  private Stmt forStatement() {
+    consume(LEFT_PAREN, "Expect '(' after 'for'.");
+
+    Stmt initializer;
+    if (match(SEMICOLON)) {
+      initializer = null;
+    } else if (match(VAR)) {
+      initializer = varDeclaration();
+    } else {
+      initializer = expressionStatement();
+    }
+
+    Expr condition = null;
+    if (!check(SEMICOLON)) condition = expression();
+    consume(SEMICOLON, "Expect ';' after loop condition.");
+
+    Expr increment = null;
+    if (!check(RIGHT_PAREN)) increment = expression();
+    consume(RIGHT_PAREN, "Expect ')' for clauses.");
+
+    Stmt body = statement();
+    /*
+     * what we are doing here is desugaring the
+     * syntax, from this:
+
+        for (var i = 0; i < 10; i = i + 1) print i;
+
+     * to this:
+    {
+      var i = 0;
+      while (i < 10) {
+        print i;
+        i = i + 1;
+      }
+    }
+     */
+
+    if (increment != null)
+      body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+
+    if (condition == null) condition = new Expr.Literal(true);
+    body = new Stmt.While(condition, body);
+
+    if (initializer != null) body = new Stmt.Block(Arrays.asList(initializer, body));
+
+    return body;
+  }
+
+  private Stmt whileStatment() {
+    consume(LEFT_PAREN, "Expect '(' after 'while'.");
+    Expr condition = expression();
+    consume(RIGHT_PAREN, "Expect ')' after condition.");
+    Stmt body = statement();
+
+    return new Stmt.While(condition, body);
+  }
+
+  private Stmt ifStatment() {
+    consume(LEFT_PAREN, "Expect '(' after 'if'.");
+    Expr condition = expression();
+    consume(RIGHT_PAREN, "Expect ')' after condition.");
+
+    Stmt thenBranch = statement();
+    Stmt elseBranch = null;
+    if (match(ELSE)) elseBranch = statement();
+
+    return new Stmt.If(condition, thenBranch, elseBranch);
+  }
+
+  // i think a good approach is add another variable to the block
+  // to make it more descriptive of the content of the block
+  // for example a while/for block of code is different from 
+  // an if block, since we can call break/continue from inside
+  // loops, while we can't do it from inside if blocks or any 
+  // normal blocks.
   private List<Stmt> block() {
-    List<Stmt> statments = new ArrayList<>();
+    List<Stmt> Statments = new ArrayList<>();
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-      statments.add(declaration());
+      Statments.add(declaration());
     }
 
     consume(RIGHT_BRACE, "Expect '}' after block.");
-    return statments;
+    return Statments;
   }
 
   private Stmt expressionStatement() {
@@ -77,7 +156,7 @@ class Parser {
   }
 
   private Expr assignment() {
-    Expr expr = equality();
+    Expr expr = or();
 
     if (match(EQUAL)) {
       Token equals = previous();
@@ -91,6 +170,27 @@ class Parser {
       return new Expr.Assign(name, value);
     }
 
+    return expr;
+  }
+
+  private Expr or() {
+    Expr expr = and();
+    while (match(OR)) {
+      Token operator = previous();
+      Expr right = and();
+      expr = new Expr.Logical(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+  private Expr and() {
+    Expr expr = equality();
+    while (match(AND)) {
+      Token operator = previous();
+      Expr right = equality();
+      expr = new Expr.Logical(expr, operator, right);
+    }
     return expr;
   }
 
