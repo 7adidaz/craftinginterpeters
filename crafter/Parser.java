@@ -28,11 +28,31 @@ class Parser {
   private Stmt declaration() {
     try {
       if (match(VAR)) return varDeclaration();
+      if (match(FUN)) return function("function");
       return statement();
     } catch (ParseError error) {
       synchronize();
       return null;
     }
+  }
+
+  private Stmt.Function function(String kind) {
+    Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+    // consuming params
+    consume(LEFT_PAREN, "Expect '(' after" + kind + " name.");
+    List<Token> parameters = new ArrayList<>();
+    do {
+      if (parameters.size() >= 255) {
+        error(peek(), "CLEAN CODE?");
+      }
+      parameters.add(consume(IDENTIFIER, "Expect " + kind + " name."));
+    } while (match(COMMA));
+    consume(RIGHT_PAREN, "Expect ')' after parameters.");
+
+    consume(LEFT_BRACE, "Expect '{' before " + kind + "body.");
+    List<Stmt> body = block();
+    return new Stmt.Function(name, parameters, body);
   }
 
   private Stmt varDeclaration() {
@@ -49,9 +69,19 @@ class Parser {
     if (match(FOR)) return forStatement();
     if (match(IF)) return ifStatment();
     if (match(PRINT)) return printStatment();
+    if (match(RETURN)) return returnStatment();
     if (match(WHILE)) return whileStatment();
     if (match(LEFT_BRACE)) return new Stmt.Block(block());
     return expressionStatement();
+  }
+
+  private Stmt returnStatment() {
+    Token keyword = previous();
+    Expr value = null;
+    if (!check(SEMICOLON)) value = expression();
+
+    consume(SEMICOLON, "Expect ';' after return statment.");
+    return new Stmt.Return(keyword, value);
   }
 
   private Stmt forStatement() {
@@ -125,9 +155,9 @@ class Parser {
 
   // i think a good approach is add another variable to the block
   // to make it more descriptive of the content of the block
-  // for example a while/for block of code is different from 
+  // for example a while/for block of code is different from
   // an if block, since we can call break/continue from inside
-  // loops, while we can't do it from inside if blocks or any 
+  // loops, while we can't do it from inside if blocks or any
   // normal blocks.
   private List<Stmt> block() {
     List<Stmt> Statments = new ArrayList<>();
@@ -248,7 +278,30 @@ class Parser {
       return new Expr.Unary(operator, right);
     }
 
-    return primary();
+    return call();
+  }
+
+  private Expr call() {
+    Expr expr = primary();
+
+    while (true) {
+      if (match(LEFT_PAREN)) expr = finishCall(expr);
+      else break;
+    }
+    return expr;
+  }
+
+  private Expr finishCall(Expr callee) {
+    List<Expr> arguments = new ArrayList<>();
+    if (!check(RIGHT_PAREN)) {
+      if (arguments.size() >= 255) error(peek(), "too much arguments dude, do better");
+      do arguments.add(expression());
+      while (match(COMMA));
+    }
+
+    Token paren = consume(RIGHT_PAREN, "Expect ')' after argument");
+
+    return new Expr.Call(callee, paren, arguments);
   }
 
   private Expr primary() {

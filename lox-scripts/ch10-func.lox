@@ -1,0 +1,8 @@
+fun hi(first, last){
+    print "Hi " + first + " " + last + "!";
+    return "this is return: ";
+}
+
+print hi("ror", "gomaa");
+
+
