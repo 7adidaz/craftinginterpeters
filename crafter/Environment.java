@@ -39,12 +39,30 @@ class Environment {
     }
     throw new RuntimeError(name, "Assignment to undefined variable'" + name.lexeme + "'.");
   }
-  //TODO: Scoping does't work
+
+  // TODO: Scoping does't work
   void listContent() {
     System.out.println("{ ");
     for (String key : values.keySet()) {
       System.out.println(key + " : " + values.get(key));
     }
     System.out.println(" }");
+  }
+
+  public Object getAt(Integer distance, String name) {
+    return ancestor(distance).values.get(name);
+  }
+
+  Environment ancestor(int distance) {
+    Environment environment = this;
+    for (int i = 0; i < distance; i++) {
+      environment = environment.enclosing;
+    }
+
+    return environment;
+  }
+
+  public void assignAt(Integer distance, Token name, Object value) {
+    ancestor(distance).values.put(name.lexeme, value);
   }
 }

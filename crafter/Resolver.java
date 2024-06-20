@@ -1,0 +1,210 @@
+package crafter;
+
+import crafter.Expr.Assign;
+import crafter.Expr.Binary;
+import crafter.Expr.Call;
+import crafter.Expr.Grouping;
+import crafter.Expr.Literal;
+import crafter.Expr.Logical;
+import crafter.Expr.Unary;
+import crafter.Expr.Variable;
+import crafter.Stmt.Block;
+import crafter.Stmt.Expression;
+import crafter.Stmt.Function;
+import crafter.Stmt.If;
+import crafter.Stmt.Print;
+import crafter.Stmt.Return;
+import crafter.Stmt.Var;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Stack;
+
+class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
+  private final Interpreter interpreter;
+  private final Stack<HashMap<String, Boolean>> scopes = new Stack<>();
+  private FunctionType currentFunction = FunctionType.NONE;
+
+  Resolver(Interpreter interpreter) {
+    this.interpreter = interpreter;
+  }
+
+  private enum FunctionType {
+    NONE,
+    FUNCTION
+  }
+
+  @Override
+  public Void visitBlockStmt(Block stmts) {
+    beginScope();
+    resolve(stmts.statments);
+    endScope();
+    return null;
+  }
+
+  @Override
+  public Void visitVarStmt(Var stmt) {
+    declare(stmt.name);
+    if (stmt.initializer != null) {
+      resolve(stmt.initializer);
+    }
+    define(stmt.name);
+    return null;
+  }
+
+  @Override
+  public Void visitVariableExpr(Variable expr) {
+    if (!scopes.isEmpty() && scopes.peek().get(expr.name.lexeme) == Boolean.FALSE)
+      Lox.error(expr.name, "can't real local variable in it's initializer");
+    resolveLocal(expr, expr.name);
+    return null;
+  }
+
+  @Override
+  public Void visitAssignExpr(Assign expr) {
+    resolve(expr.value);
+    resolveLocal(expr, expr.name);
+    return null;
+  }
+
+  @Override
+  public Void visitFunctionStmt(Function stmt) {
+    declare(stmt.name);
+    define(stmt.name);
+
+    resolveFunction(stmt, FunctionType.FUNCTION);
+
+    return null;
+  }
+
+  @Override
+  public Void visitExpressionStmt(Expression stmt) {
+    resolve(stmt.expression);
+    return null;
+  }
+
+  @Override
+  public Void visitIfStmt(If stmt) {
+    resolve(stmt.condition);
+    resolve(stmt.thenBranch);
+    if (stmt.elseBranch != null) resolve(stmt.elseBranch);
+    return null;
+  }
+
+  @Override
+  public Void visitReturnStmt(Return stmt) {
+    if (currentFunction == FunctionType.NONE)
+      Lox.error(stmt.keyword, "Can't return from top-level code");
+    if (stmt.value != null) resolve(stmt.value);
+    return null;
+  }
+
+  @Override
+  public Void visitWhileStmt(Stmt.While stmt) {
+    resolve(stmt.condition);
+    resolve(stmt.body);
+    return null;
+  }
+
+  @Override
+  public Void visitCallExpr(Call expr) {
+    resolve(expr.callee);
+    for (Expr arg : expr.arguments) resolve(arg);
+    return null;
+  }
+
+  @Override
+  public Void visitGroupingExpr(Grouping expr) {
+    resolve(expr.expression);
+    return null;
+  }
+
+  @Override
+  public Void visitLiteralExpr(Literal expr) {
+    return null;
+  }
+
+  @Override
+  public Void visitLogicalExpr(Logical expr) {
+    resolve(expr.left);
+    resolve(expr.right);
+    return null;
+  }
+
+  @Override
+  public Void visitUnaryExpr(Unary expr) {
+    resolve(expr.right);
+    return null;
+  }
+
+  private void resolveFunction(Function func, FunctionType type) {
+    FunctionType enclosingFunction = currentFunction;
+    currentFunction = type;
+
+    beginScope();
+    for (Token param : func.params) {
+      declare(param);
+      define(param);
+    }
+    resolve(func);
+    endScope();
+
+    currentFunction = enclosingFunction;
+  }
+
+  private void resolveLocal(Expr expr, Token name) {
+    for (int i = scopes.size() - 1; i >= 0; i++) {
+      if (scopes.get(i).containsKey(name.lexeme)) {
+        interpreter.resolve(expr, scopes.size() - 1 - i);
+        return;
+      }
+    }
+  }
+
+  private void define(Token name) {
+    if (scopes.isEmpty()) return;
+    scopes.peek().put(name.lexeme, true);
+  }
+
+  private void declare(Token name) {
+    if (scopes.isEmpty()) return;
+    Map<String, Boolean> scope = scopes.peek();
+    if (scope.containsKey(name.lexeme))
+      Lox.error(name, "Already a variable with this name exists in this scope");
+
+    scope.put(name.lexeme, false);
+  }
+
+  private void endScope() {
+    scopes.pop();
+  }
+
+  private void beginScope() {
+    scopes.push(new HashMap<String, Boolean>());
+  }
+
+  public void resolve(List<Stmt> statments) {
+    for (Stmt statment : statments) resolve(statment);
+  }
+
+  private void resolve(Stmt stmt) {
+    stmt.accept(this);
+  }
+
+  private void resolve(Expr expr) {
+    expr.accept(this);
+  }
+
+  @Override
+  public Void visitBinaryExpr(Binary expr) {
+    resolve(expr.left);
+    resolve(expr.right);
+    return null;
+  }
+
+  @Override
+  public Void visitPrintStmt(Print stmt) {
+    resolve(stmt.expression);
+    return null;
+  }
+}

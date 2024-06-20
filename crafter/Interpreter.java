@@ -15,9 +15,12 @@ import crafter.Stmt.Print;
 import crafter.Stmt.Var;
 import crafter.Stmt.While;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+  private final Map<Expr, Integer> locals = new HashMap<>();
   final Environment globals = new Environment();
   private Environment environment = globals;
 
@@ -161,6 +164,10 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     stmt.accept(this);
   }
 
+  void resolve(Expr expr, int depth) {
+    locals.put(expr, depth);
+  }
+
   @Override
   public Void visitExpressionStmt(Expression stmt) {
     evaluate(stmt.expression);
@@ -186,13 +193,29 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
   @Override
   public Object visitVariableExpr(Variable expr) {
-    return environment.get(expr.name);
+    return lookupVariable(expr.name, expr);
+  }
+
+  private Object lookupVariable(Token name, Variable expr) {
+    Integer distance = locals.get(expr);
+
+    if (distance != null) {
+      return environment.getAt(distance, name.lexeme);
+    } else {
+      return globals.get(name);
+    }
   }
 
   @Override
   public Object visitAssignExpr(Assign expr) {
     Object value = evaluate(expr.value);
-    environment.assign(expr.name, value);
+
+    Integer distance = locals.get(expr);
+    if (distance != null) {
+      environment.assignAt(distance, expr.name, value);
+    } else {
+      globals.assign(expr.name, value);
+    }
     return value;
   }
 
