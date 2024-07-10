@@ -3,12 +3,15 @@ package crafter;
 import crafter.Expr.Assign;
 import crafter.Expr.Binary;
 import crafter.Expr.Call;
+import crafter.Expr.Get;
 import crafter.Expr.Grouping;
 import crafter.Expr.Literal;
 import crafter.Expr.Logical;
+import crafter.Expr.Set;
 import crafter.Expr.Unary;
 import crafter.Expr.Variable;
 import crafter.Stmt.Block;
+import crafter.Stmt.Class;
 import crafter.Stmt.Expression;
 import crafter.Stmt.Function;
 import crafter.Stmt.If;
@@ -205,6 +208,26 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
   @Override
   public Void visitPrintStmt(Print stmt) {
     resolve(stmt.expression);
+    return null;
+  }
+
+  @Override
+  public Void visitClassStmt(Class stmt) {
+    declare(stmt.name);
+    define(stmt.name);
+    return null;
+  }
+
+  @Override
+  public Void visitGetExpr(Get expr) {
+    resolve(expr.object);
+    return null;
+  }
+
+  @Override
+  public Void visitSetExpr(Set expr) {
+    resolve(expr.value);
+    resolve(expr.object);
     return null;
   }
 }

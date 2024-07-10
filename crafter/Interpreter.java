@@ -3,11 +3,14 @@ package crafter;
 import crafter.Expr.Assign;
 import crafter.Expr.Binary;
 import crafter.Expr.Call;
+import crafter.Expr.Get;
 import crafter.Expr.Grouping;
 import crafter.Expr.Logical;
+import crafter.Expr.Set;
 import crafter.Expr.Unary;
 import crafter.Expr.Variable;
 import crafter.Stmt.Block;
+import crafter.Stmt.Class;
 import crafter.Stmt.Expression;
 import crafter.Stmt.Function;
 import crafter.Stmt.If;
@@ -300,5 +303,34 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     if (stmt.value != null) value = evaluate(stmt.value);
 
     throw new Return(value);
+  }
+
+  @Override
+  public Void visitClassStmt(Class stmt) {
+    environment.define(stmt.name.lexeme, null);
+    LoxClass klass = new LoxClass(stmt.name.lexeme);
+    environment.assign(stmt.name, klass);
+
+    return null;
+  }
+
+  @Override
+  public Object visitGetExpr(Get expr) {
+    Object object = evaluate(expr.object);
+    if (object instanceof LoxInstance) return ((LoxInstance) object).get(expr.name);
+
+    throw new RuntimeError(expr.name, "only instances have properties.");
+  }
+
+  @Override
+  public Object visitSetExpr(Set expr) {
+    Object object = evaluate(expr.object);
+    if (!(object instanceof LoxInstance))
+      throw new RuntimeError(expr.name, "only instances have fields");
+
+    Object value = evaluate(expr.value);
+    ((LoxInstance) object).set(expr.name, value);
+
+    return value;
   }
 }
