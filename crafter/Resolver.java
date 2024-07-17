@@ -149,14 +149,14 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
       declare(param);
       define(param);
     }
-    resolve(func);
+    resolve(func.body);
     endScope();
 
     currentFunction = enclosingFunction;
   }
 
   private void resolveLocal(Expr expr, Token name) {
-    for (int i = scopes.size() - 1; i >= 0; i++) {
+    for (int i = scopes.size() - 1; i >= 0; i--) {
       if (scopes.get(i).containsKey(name.lexeme)) {
         interpreter.resolve(expr, scopes.size() - 1 - i);
         return;
