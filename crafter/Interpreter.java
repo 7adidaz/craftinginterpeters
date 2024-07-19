@@ -7,6 +7,7 @@ import crafter.Expr.Get;
 import crafter.Expr.Grouping;
 import crafter.Expr.Logical;
 import crafter.Expr.Set;
+import crafter.Expr.This;
 import crafter.Expr.Unary;
 import crafter.Expr.Variable;
 import crafter.Stmt.Block;
@@ -199,7 +200,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     return lookupVariable(expr.name, expr);
   }
 
-  private Object lookupVariable(Token name, Variable expr) {
+  private Object lookupVariable(Token name, Expr expr) {
     Integer distance = locals.get(expr);
 
     if (distance != null) {
@@ -292,7 +293,7 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
   @Override
   public Void visitFunctionStmt(Function stmt) {
-    LoxFunction function = new LoxFunction(stmt, environment);
+    LoxFunction function = new LoxFunction(stmt, environment, false);
     environment.define(stmt.name.lexeme, function);
     return null;
   }
@@ -308,9 +309,15 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
   @Override
   public Void visitClassStmt(Class stmt) {
     environment.define(stmt.name.lexeme, null);
-    LoxClass klass = new LoxClass(stmt.name.lexeme);
-    environment.assign(stmt.name, klass);
 
+    Map<String, LoxFunction> methods = new HashMap<>();
+    for (Function method : stmt.methods) {
+      LoxFunction function = new LoxFunction(method, environment, method.name.lexeme.equals("init"));
+      methods.put(method.name.lexeme, function);
+    }
+
+    LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+    environment.assign(stmt.name, klass);
     return null;
   }
 
@@ -332,5 +339,10 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     ((LoxInstance) object).set(expr.name, value);
 
     return value;
+  }
+
+  @Override
+  public Object visitThisExpr(This expr) {
+    return lookupVariable(expr.keyword, expr);
   }
 }

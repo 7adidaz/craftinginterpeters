@@ -8,6 +8,7 @@ import crafter.Expr.Grouping;
 import crafter.Expr.Literal;
 import crafter.Expr.Logical;
 import crafter.Expr.Set;
+import crafter.Expr.This;
 import crafter.Expr.Unary;
 import crafter.Expr.Variable;
 import crafter.Stmt.Block;
@@ -27,6 +28,7 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
   private final Interpreter interpreter;
   private final Stack<HashMap<String, Boolean>> scopes = new Stack<>();
   private FunctionType currentFunction = FunctionType.NONE;
+  private ClassType currentClass = ClassType.NONE;
 
   Resolver(Interpreter interpreter) {
     this.interpreter = interpreter;
@@ -34,7 +36,14 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
 
   private enum FunctionType {
     NONE,
-    FUNCTION
+    FUNCTION,
+    INIALIZER,
+    METHOD,
+  }
+
+  private enum ClassType {
+    CLASS,
+    NONE
   }
 
   @Override
@@ -98,6 +107,8 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
   public Void visitReturnStmt(Return stmt) {
     if (currentFunction == FunctionType.NONE)
       Lox.error(stmt.keyword, "Can't return from top-level code");
+    if (currentFunction == FunctionType.INIALIZER)
+      Lox.error(stmt.keyword, "Can't return from an initializer");
     if (stmt.value != null) resolve(stmt.value);
     return null;
   }
@@ -213,8 +224,25 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
 
   @Override
   public Void visitClassStmt(Class stmt) {
+    ClassType enclosingClass = currentClass;
+    enclosingClass = ClassType.CLASS;
+
     declare(stmt.name);
     define(stmt.name);
+
+    beginScope();
+    scopes.peek().put("this", true);
+
+    for (Stmt.Function method : stmt.methods) {
+      FunctionType declaration = FunctionType.METHOD;
+      if (method.name.lexeme.equals("init")) declaration = FunctionType.INIALIZER;
+
+      resolveFunction(method, declaration);
+    }
+
+    endScope();
+
+    currentClass = enclosingClass;
     return null;
   }
 
@@ -228,6 +256,16 @@ class Resolver implements Stmt.Visitor<Void>, Expr.Visitor<Void> {
   public Void visitSetExpr(Set expr) {
     resolve(expr.value);
     resolve(expr.object);
+    return null;
+  }
+
+  @Override
+  public Void visitThisExpr(This expr) {
+    if (currentClass == ClassType.CLASS) {
+      Lox.error(expr.keyword, "Can't use 'this' outside of class.");
+      return null;
+    }
+    resolveLocal(expr, expr.keyword);
     return null;
   }
 }

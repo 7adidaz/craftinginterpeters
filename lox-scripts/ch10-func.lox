@@ -3,6 +3,9 @@ fun hi(first, last){
     return "this is return: ";
 }
 
+fun noParam () {
+    print "no param";
+  }
+
 print hi("ror", "gomaa");
-
-
+noParam();
